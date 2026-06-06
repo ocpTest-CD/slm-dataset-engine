@@ -73,6 +73,10 @@ jobs:
           scp deploy/compose.yaml slm-dataset-engine:/opt/slm-dataset-engine/compose.yaml
           scp deploy/Caddyfile slm-dataset-engine:/opt/slm-dataset-engine/Caddyfile
 
+      - name: 服务器登录 GHCR
+        run: |
+          printf '%s' "${{ github.token }}" | ssh slm-dataset-engine "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+
       - name: 启动服务
         run: |
           set -euo pipefail
