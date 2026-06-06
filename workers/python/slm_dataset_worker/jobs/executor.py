@@ -135,7 +135,7 @@ class Executor:
             query = """
                 SELECT s.id, s.source_id, COALESCE(src.filename, ''), COALESCE(src.source_type, ''),
                     s.input_text, s.output_text, s.quality_score, s.token_count, s.status
-                FROM samples
+                FROM samples s
                 LEFT JOIN sources src ON src.id = s.source_id
                 WHERE s.project_id = %s AND s.status = 'accepted'
             """

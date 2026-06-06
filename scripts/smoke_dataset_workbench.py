@@ -16,7 +16,7 @@ TIMEOUT_SECONDS = int(os.environ.get("SMOKE_TIMEOUT_SECONDS", "180"))
 
 def request(method: str, path: str, body: Optional[Any] = None, headers: Optional[dict[str, str]] = None) -> Any:
     data = None
-    req_headers = headers or {}
+    req_headers = {"User-Agent": "slm-dataset-engine-smoke/1.0", **(headers or {})}
     if body is not None:
         if isinstance(body, bytes):
             data = body

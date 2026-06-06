@@ -386,12 +386,22 @@ func (s *Store) CompleteJob(ctx context.Context, id, result string) error {
 
 func (s *Store) FailJob(ctx context.Context, id, message string) error {
 	_, err := s.pool.Exec(ctx, `
-		UPDATE jobs
-		SET status = CASE WHEN attempts >= max_attempts THEN 'failed_final' ELSE 'pending' END,
-			error_message = $2,
-			finished_at = CASE WHEN attempts >= max_attempts THEN now() ELSE finished_at END,
-			updated_at = now()
-		WHERE id = $1
+		WITH updated AS (
+			UPDATE jobs
+			SET status = CASE WHEN attempts >= max_attempts THEN 'failed_final' ELSE 'pending' END,
+				error_message = $2,
+				finished_at = CASE WHEN attempts >= max_attempts THEN now() ELSE finished_at END,
+				updated_at = now()
+			WHERE id = $1
+			RETURNING job_type, status, payload
+		)
+		UPDATE dataset_versions
+		SET status = 'failed', updated_at = now()
+		WHERE id IN (
+			SELECT NULLIF(payload->>'dataset_version_id', '')::uuid
+			FROM updated
+			WHERE status = 'failed_final' AND job_type = 'export_dataset' AND payload ? 'dataset_version_id'
+		)
 	`, id, message)
 	return err
 }
