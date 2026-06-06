@@ -75,7 +75,7 @@ func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
 	}
 	defer rows.Close()
 
-	var projects []domain.Project
+	projects := make([]domain.Project, 0)
 	for rows.Next() {
 		project, err := scanProject(rows)
 		if err != nil {
@@ -118,7 +118,7 @@ func (s *Store) ListSources(ctx context.Context, projectID string) ([]domain.Sou
 	}
 	defer rows.Close()
 
-	var sources []domain.Source
+	sources := make([]domain.Source, 0)
 	for rows.Next() {
 		source, err := scanSource(rows)
 		if err != nil {
@@ -188,7 +188,7 @@ func (s *Store) ListRuns(ctx context.Context, projectID string) ([]domain.Run, e
 	}
 	defer rows.Close()
 
-	var runs []domain.Run
+	runs := make([]domain.Run, 0)
 	for rows.Next() {
 		run, err := scanRun(rows)
 		if err != nil {
@@ -220,7 +220,7 @@ func (s *Store) ListSamples(ctx context.Context, projectID, status string, limit
 	}
 	defer rows.Close()
 
-	var samples []domain.Sample
+	samples := make([]domain.Sample, 0)
 	for rows.Next() {
 		sample, err := scanSample(rows)
 		if err != nil {
@@ -273,7 +273,7 @@ func (s *Store) ListQualityIssues(ctx context.Context, projectID string, limit i
 	}
 	defer rows.Close()
 
-	var issues []domain.QualityIssue
+	issues := make([]domain.QualityIssue, 0)
 	for rows.Next() {
 		var issue domain.QualityIssue
 		if err := rows.Scan(&issue.ID, &issue.IssueType, &issue.Severity, &issue.Message, &issue.CreatedAt); err != nil {
@@ -331,7 +331,7 @@ func (s *Store) ListDatasetVersions(ctx context.Context, projectID string) ([]do
 	}
 	defer rows.Close()
 
-	var versions []domain.DatasetVersion
+	versions := make([]domain.DatasetVersion, 0)
 	for rows.Next() {
 		version, err := scanDatasetVersion(rows)
 		if err != nil {

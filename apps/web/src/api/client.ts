@@ -68,31 +68,35 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function listRequest<T>(path: string): Promise<T[]> {
+  const result = await request<T[] | null>(path);
+  return Array.isArray(result) ? result : [];
+}
+
 export const api = {
-  listProjects: () => request<Project[]>("/api/projects"),
+  listProjects: () => listRequest<Project>("/api/projects"),
   createProject: (body: { name: string; description: string; domain: string }) =>
     request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
-  listSources: (projectId: string) => request<Source[]>(`/api/projects/${projectId}/sources`),
+  listSources: (projectId: string) => listRequest<Source>(`/api/projects/${projectId}/sources`),
   uploadSource: (projectId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
     return request<Source>(`/api/projects/${projectId}/sources`, { method: "POST", body: form });
   },
   startRun: (sourceId: string) => request<Run>(`/api/sources/${sourceId}/runs`, { method: "POST" }),
-  listRuns: (projectId: string) => request<Run[]>(`/api/projects/${projectId}/runs`),
+  listRuns: (projectId: string) => listRequest<Run>(`/api/projects/${projectId}/runs`),
   listSamples: (projectId: string, status = "") =>
-    request<Sample[]>(`/api/projects/${projectId}/samples?limit=80${status ? `&status=${status}` : ""}`),
+    listRequest<Sample>(`/api/projects/${projectId}/samples?limit=80${status ? `&status=${status}` : ""}`),
   reviewSample: (sampleId: string, status: string) =>
     request<Sample>(`/api/samples/${sampleId}/review`, {
       method: "PATCH",
       body: JSON.stringify({ status, reviewer: "workbench" })
     }),
-  listQualityIssues: (projectId: string) => request<QualityIssue[]>(`/api/projects/${projectId}/quality-issues`),
-  listVersions: (projectId: string) => request<DatasetVersion[]>(`/api/projects/${projectId}/dataset-versions`),
+  listQualityIssues: (projectId: string) => listRequest<QualityIssue>(`/api/projects/${projectId}/quality-issues`),
+  listVersions: (projectId: string) => listRequest<DatasetVersion>(`/api/projects/${projectId}/dataset-versions`),
   createVersion: (projectId: string, runId: string, versionName: string) =>
     request<DatasetVersion>(`/api/projects/${projectId}/dataset-versions`, {
       method: "POST",
       body: JSON.stringify({ run_id: runId, version_name: versionName })
     })
 };
-
