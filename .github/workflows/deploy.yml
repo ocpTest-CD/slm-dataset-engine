@@ -44,9 +44,10 @@ jobs:
       - name: 上传部署文件
         run: |
           set -euo pipefail
-          ssh slm-dataset-engine 'mkdir -p /opt/slm-dataset-engine/artifacts'
+          ssh slm-dataset-engine 'mkdir -p /opt/slm-dataset-engine/artifacts /opt/slm-dataset-engine/site'
           scp deploy/compose.yaml slm-dataset-engine:/opt/slm-dataset-engine/compose.yaml
           scp deploy/Caddyfile slm-dataset-engine:/opt/slm-dataset-engine/Caddyfile
+          scp -r deploy/site/. slm-dataset-engine:/opt/slm-dataset-engine/site/
 
       - name: 启动服务
         run: |

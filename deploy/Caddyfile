@@ -6,17 +6,19 @@
 
 :80 {
     encode zstd gzip
+    root * /srv/site
 
     header {
         X-Content-Type-Options nosniff
         Referrer-Policy no-referrer
+        Cache-Control "public, max-age=60"
     }
 
     handle /healthz {
         respond "ok" 200
     }
 
-    respond "slm-dataset-engine deployment gateway\n" 200
+    file_server
 }
 
 # Keep Nginx as the public reverse proxy after DNS is fixed:
