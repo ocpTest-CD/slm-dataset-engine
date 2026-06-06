@@ -133,7 +133,11 @@ def main() -> None:
             raise RuntimeError(f"rag-dataset.zip not found: {files}")
 
         zip_path = Path(tmp) / "rag-dataset.zip"
-        with urllib.request.urlopen(BASE_URL + f"/api/dataset-version-files/{zip_file['id']}/download", timeout=30) as resp:
+        download_req = urllib.request.Request(
+            BASE_URL + f"/api/dataset-version-files/{zip_file['id']}/download",
+            headers={"User-Agent": "slm-dataset-engine-smoke/1.0"},
+        )
+        with urllib.request.urlopen(download_req, timeout=30) as resp:
             zip_path.write_bytes(resp.read())
         with zipfile.ZipFile(zip_path) as archive:
             names = set(archive.namelist())
