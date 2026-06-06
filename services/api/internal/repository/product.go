@@ -213,10 +213,10 @@ func (s *Store) CreateToolInvocation(ctx context.Context, principal domain.Princ
 	if err != nil {
 		return domain.ToolInvocation{}, err
 	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE tool_invocations SET job_id = $2, updated_at = now() WHERE id = $1;
-		UPDATE jobs SET payload = $3::jsonb WHERE id = $2;
-	`, invocation.ID, job.ID, string(payload)); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE tool_invocations SET job_id = $2, updated_at = now() WHERE id = $1`, invocation.ID, job.ID); err != nil {
+		return domain.ToolInvocation{}, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE jobs SET payload = $2::jsonb WHERE id = $1`, job.ID, string(payload)); err != nil {
 		return domain.ToolInvocation{}, err
 	}
 	invocation.JobID = job.ID
