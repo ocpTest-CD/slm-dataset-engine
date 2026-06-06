@@ -11,8 +11,9 @@ services:
       LISTEN_ADDR: ":8080"
       MIGRATIONS_DIR: /app/migrations
       ARTIFACTS_DIR: /var/lib/slm-dataset-engine/artifacts
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - postgres_default
     volumes:
       - ./artifacts:/var/lib/slm-dataset-engine/artifacts
 
@@ -25,8 +26,9 @@ services:
     environment:
       API_BASE_URL: http://api:8080
       ARTIFACTS_DIR: /var/lib/slm-dataset-engine/artifacts
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - postgres_default
     volumes:
       - ./artifacts:/var/lib/slm-dataset-engine/artifacts
     depends_on:
@@ -58,3 +60,7 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  postgres_default:
+    external: true

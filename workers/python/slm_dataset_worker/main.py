@@ -14,7 +14,12 @@ def main() -> None:
 
     logging.info("worker started id=%s api=%s", cfg.worker_id, cfg.api_base_url)
     while True:
-        job = client.claim_job()
+        try:
+            job = client.claim_job()
+        except Exception as exc:  # noqa: BLE001 - API may still be starting
+            logging.warning("claim job failed, retrying: %s", exc)
+            time.sleep(cfg.poll_interval_seconds)
+            continue
         if job is None:
             time.sleep(cfg.poll_interval_seconds)
             continue
@@ -32,4 +37,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
