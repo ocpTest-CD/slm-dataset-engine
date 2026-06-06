@@ -27,11 +27,7 @@ def main() -> None:
         logging.info("claimed job id=%s type=%s", job.id, job.job_type)
         try:
             client.mark_running(job.id)
-            result = executor.execute(
-                job.job_type,
-                job.payload,
-                lambda stage, progress, message, metadata=None: client.progress(job.id, stage, progress, message, metadata),
-            )
+            result = executor.execute(job.job_type, job.payload)
             client.complete(job.id, result)
             logging.info("completed job id=%s", job.id)
         except Exception as exc:  # noqa: BLE001 - worker must report all failures to API

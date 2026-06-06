@@ -1,42 +1,17 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import {
-  api,
-  Artifact,
-  ArtifactFile,
-  AuditLog,
-  DatasetVersion,
-  Job,
-  MCPServer,
-  MCPTool,
-  Me,
-  Project,
-  QualityIssue,
-  Run,
-  Sample,
-  Source,
-  ToolInvocation
-} from "./api/client";
+import { api, DatasetVersion, Project, QualityIssue, Run, Sample, Source } from "./api/client";
 
 type LoadState = "idle" | "loading" | "error";
 
 export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [me, setMe] = useState<Me | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [sources, setSources] = useState<Source[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [issues, setIssues] = useState<QualityIssue[]>([]);
   const [versions, setVersions] = useState<DatasetVersion[]>([]);
-  const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
-  const [mcpTools, setMcpTools] = useState<MCPTool[]>([]);
-  const [invocations, setInvocations] = useState<ToolInvocation[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [artifacts, setArtifacts] = useState<Artifact[]>([]);
-  const [artifactFiles, setArtifactFiles] = useState<Record<string, ArtifactFile[]>>({});
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [sampleStatus, setSampleStatus] = useState("");
-  const [mcpInput, setMcpInput] = useState('{"text":"生成一个可下载 MCP 产物","metadata":{"source":"workbench"}}');
   const [state, setState] = useState<LoadState>("idle");
   const [message, setMessage] = useState("");
 
@@ -45,10 +20,8 @@ export function App() {
     [projects, selectedProjectId]
   );
   const latestRun = runs[0];
-  const hasActiveJobs = jobs.some((job) => ["pending", "claimed", "running"].includes(job.status));
 
   useEffect(() => {
-    void refreshMe();
     void refreshProjects();
   }, []);
 
@@ -57,14 +30,6 @@ export function App() {
       void refreshProjectData(selectedProjectId);
     }
   }, [selectedProjectId, sampleStatus]);
-
-  useEffect(() => {
-    if (!selectedProjectId || !hasActiveJobs) return;
-    const timer = window.setInterval(() => {
-      void refreshProjectData(selectedProjectId, false);
-    }, 1800);
-    return () => window.clearInterval(timer);
-  }, [selectedProjectId, hasActiveJobs, sampleStatus]);
 
   async function runAction<T>(action: () => Promise<T>, nextMessage: string) {
     setState("loading");
@@ -90,41 +55,19 @@ export function App() {
     }
   }
 
-  async function refreshMe() {
-    const result = await api.me();
-    setMe(result);
-  }
-
-  async function refreshProjectData(projectId: string, showMessage = false) {
-    const [nextSources, nextRuns, nextSamples, nextIssues, nextVersions, nextServers, nextInvocations, nextJobs, nextArtifacts, nextAuditLogs] = await Promise.all([
+  async function refreshProjectData(projectId: string) {
+    const [nextSources, nextRuns, nextSamples, nextIssues, nextVersions] = await Promise.all([
       api.listSources(projectId),
       api.listRuns(projectId),
       api.listSamples(projectId, sampleStatus),
       api.listQualityIssues(projectId),
-      api.listVersions(projectId),
-      api.listMCPServers(projectId),
-      api.listInvocations(projectId),
-      api.listJobs(projectId),
-      api.listArtifacts(projectId),
-      api.listAuditLogs(projectId)
+      api.listVersions(projectId)
     ]);
-    const nextTools = (await Promise.all(nextServers.map((server) => api.listMCPTools(server.id)))).flat();
-    const nextFilesEntries = await Promise.all(
-      nextArtifacts.map(async (artifact) => [artifact.id, await api.listArtifactFiles(artifact.id)] as const)
-    );
     setSources(nextSources);
     setRuns(nextRuns);
     setSamples(nextSamples);
     setIssues(nextIssues);
     setVersions(nextVersions);
-    setMcpServers(nextServers);
-    setMcpTools(nextTools);
-    setInvocations(nextInvocations);
-    setJobs(nextJobs);
-    setArtifacts(nextArtifacts);
-    setArtifactFiles(Object.fromEntries(nextFilesEntries));
-    setAuditLogs(nextAuditLogs);
-    if (showMessage) setMessage("工作台状态已刷新");
   }
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
@@ -152,29 +95,6 @@ export function App() {
     if (!(file instanceof File)) return;
     await runAction(() => api.uploadSource(selectedProjectId, file), "数据源已上传");
     event.currentTarget.reset();
-    await refreshProjectData(selectedProjectId);
-  }
-
-  async function createMCPServer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedProjectId) return;
-    const form = new FormData(event.currentTarget);
-    await runAction(
-      () =>
-        api.createMCPServer(selectedProjectId, {
-          name: String(form.get("name") ?? ""),
-          endpoint: String(form.get("endpoint") ?? ""),
-          transport: String(form.get("transport") ?? "stdio")
-        }),
-      "MCP Server 已注册，并自动创建 echo_artifact Tool"
-    );
-    event.currentTarget.reset();
-    await refreshProjectData(selectedProjectId);
-  }
-
-  async function invokeTool(toolId: string) {
-    if (!selectedProjectId) return;
-    await runAction(() => api.invokeMCPTool(toolId, mcpInput), "Tool 调用已进入任务队列");
     await refreshProjectData(selectedProjectId);
   }
 
@@ -246,10 +166,7 @@ export function App() {
             <p className="eyebrow">Workbench</p>
             <h1>{selectedProject?.name ?? "创建一个数据集项目"}</h1>
           </div>
-          <div className="topbar-actions">
-            {me && <span>{me.workspace.name} · {me.principal.role}</span>}
-            <button onClick={() => selectedProjectId && refreshProjectData(selectedProjectId, true)}>刷新</button>
-          </div>
+          <button onClick={() => selectedProjectId && refreshProjectData(selectedProjectId)}>刷新</button>
         </header>
 
         {message && <div className={state === "error" ? "notice error" : "notice"}>{message}</div>}
@@ -260,120 +177,6 @@ export function App() {
           <Metric label="样本" value={samples.length} />
           <Metric label="质量问题" value={issues.length} />
           <Metric label="版本" value={versions.length} />
-          <Metric label="MCP Tool" value={mcpTools.length} />
-          <Metric label="产物" value={artifacts.length} />
-        </section>
-
-        <section className="panels">
-          <div className="panel">
-            <div className="panel-title">
-              <h2>MCP Registry</h2>
-              <form className="upload-form" onSubmit={createMCPServer}>
-                <input name="name" placeholder="Server 名称" />
-                <input name="endpoint" placeholder="endpoint / stdio 命令" />
-                <input name="transport" placeholder="stdio" />
-                <button type="submit" disabled={!selectedProjectId}>注册</button>
-              </form>
-            </div>
-            <div className="list">
-              {mcpServers.map((server) => (
-                <article key={server.id} className="row">
-                  <div>
-                    <strong>{server.name}</strong>
-                    <span>{server.transport} · {server.status} · {server.endpoint || "local"}</span>
-                  </div>
-                </article>
-              ))}
-              {mcpServers.length === 0 && <p className="empty">注册 MCP Server 后，系统会创建一个可验证闭环的 echo_artifact Tool。</p>}
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-title">
-              <h2>Tool 调用</h2>
-              <button onClick={() => selectedProjectId && refreshProjectData(selectedProjectId)}>同步状态</button>
-            </div>
-            <textarea className="json-input" value={mcpInput} onChange={(event) => setMcpInput(event.target.value)} rows={4} />
-            <div className="list">
-              {mcpTools.map((tool) => (
-                <article key={tool.id} className="row">
-                  <div>
-                    <strong>{tool.name}</strong>
-                    <span>{tool.description || "无描述"}</span>
-                  </div>
-                  <button onClick={() => invokeTool(tool.id)} disabled={!tool.enabled}>调用</button>
-                </article>
-              ))}
-              {invocations.slice(0, 4).map((invocation) => (
-                <article key={invocation.id} className="row muted">
-                  <div>
-                    <strong>{invocation.tool_name || invocation.tool_id}</strong>
-                    <span>{invocation.status} · job {shortId(invocation.job_id)}</span>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="panels">
-          <div className="panel">
-            <div className="panel-title">
-              <h2>任务状态</h2>
-              {hasActiveJobs && <span className="live-dot">自动刷新中</span>}
-            </div>
-            <div className="list">
-              {jobs.map((job) => (
-                <article key={job.id} className="row">
-                  <div>
-                    <strong>{job.job_type} · {job.status}</strong>
-                    <span>{job.stage || "queued"} · {job.progress}% · {job.message || "无消息"}</span>
-                    {job.error_message && <span className="danger-text">{job.error_message}</span>}
-                  </div>
-                </article>
-              ))}
-              {jobs.length === 0 && <p className="empty">Tool 调用、数据导入和导出任务会出现在这里。</p>}
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-title">
-              <h2>产物下载</h2>
-            </div>
-            <div className="list">
-              {artifacts.map((artifact) => (
-                <article key={artifact.id} className="row artifact-row">
-                  <div>
-                    <strong>{artifact.name}</strong>
-                    <span>{artifact.artifact_type} · {artifact.status}</span>
-                    {(artifactFiles[artifact.id] ?? []).map((file) => (
-                      <a key={file.id} href={api.artifactFileDownloadUrl(file.id)}>
-                        {file.file_name} · {formatBytes(file.byte_size)}
-                      </a>
-                    ))}
-                  </div>
-                </article>
-              ))}
-              {artifacts.length === 0 && <p className="empty">任务完成后，可下载产物会出现在这里。</p>}
-            </div>
-          </div>
-        </section>
-
-        <section className="sample-panel compact">
-          <div className="panel-title">
-            <h2>审计日志</h2>
-          </div>
-          <div className="list audit-list">
-            {auditLogs.slice(0, 8).map((log) => (
-              <article key={log.id} className="row">
-                <div>
-                  <strong>{log.action}</strong>
-                  <span>{log.target_type} · {shortId(log.target_id)} · {new Date(log.created_at).toLocaleString()}</span>
-                </div>
-              </article>
-            ))}
-            {auditLogs.length === 0 && <p className="empty">关键操作、Tool 调用和下载会记录在这里。</p>}
-          </div>
         </section>
 
         <section className="panels">
@@ -478,6 +281,3 @@ function formatBytes(value: number) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function shortId(value: string) {
-  return value ? value.slice(0, 8) : "-";
-}

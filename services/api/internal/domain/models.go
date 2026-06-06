@@ -4,7 +4,6 @@ import "time"
 
 type Project struct {
 	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	Domain      string    `json:"domain"`
@@ -73,138 +72,12 @@ type DatasetVersion struct {
 
 type Job struct {
 	ID           string `json:"id"`
-	WorkspaceID  string `json:"workspace_id"`
 	ProjectID    string `json:"project_id"`
 	RunID        string `json:"run_id"`
-	InvocationID string `json:"invocation_id"`
 	JobType      string `json:"job_type"`
 	Status       string `json:"status"`
-	Stage        string `json:"stage"`
-	Progress     int    `json:"progress"`
-	Message      string `json:"message"`
 	Payload      string `json:"payload"`
 	Attempts     int    `json:"attempts"`
 	MaxAttempts  int    `json:"max_attempts"`
 	ErrorMessage string `json:"error_message"`
-}
-
-type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type Workspace struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type Principal struct {
-	UserID      string `json:"user_id"`
-	WorkspaceID string `json:"workspace_id"`
-	Role        string `json:"role"`
-}
-
-type Me struct {
-	User       User        `json:"user"`
-	Workspace  Workspace   `json:"workspace"`
-	Principal  Principal   `json:"principal"`
-	Workspaces []Workspace `json:"workspaces"`
-}
-
-type MCPServer struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProjectID   string    `json:"project_id"`
-	Name        string    `json:"name"`
-	Endpoint    string    `json:"endpoint"`
-	Transport   string    `json:"transport"`
-	Status      string    `json:"status"`
-	Config      string    `json:"config"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type MCPTool struct {
-	ID           string    `json:"id"`
-	WorkspaceID  string    `json:"workspace_id"`
-	ServerID     string    `json:"server_id"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	InputSchema  string    `json:"input_schema"`
-	OutputSchema string    `json:"output_schema"`
-	Enabled      bool      `json:"enabled"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-type ToolInvocation struct {
-	ID           string    `json:"id"`
-	WorkspaceID  string    `json:"workspace_id"`
-	ProjectID    string    `json:"project_id"`
-	ServerID     string    `json:"server_id"`
-	ToolID       string    `json:"tool_id"`
-	UserID       string    `json:"user_id"`
-	Status       string    `json:"status"`
-	Input        string    `json:"input"`
-	Output       string    `json:"output"`
-	ErrorMessage string    `json:"error_message"`
-	DurationMS   int       `json:"duration_ms"`
-	JobID        string    `json:"job_id"`
-	ToolName     string    `json:"tool_name"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-type JobEvent struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	JobID       string    `json:"job_id"`
-	EventType   string    `json:"event_type"`
-	Stage       string    `json:"stage"`
-	Progress    int       `json:"progress"`
-	Message     string    `json:"message"`
-	Metadata    string    `json:"metadata"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-type Artifact struct {
-	ID           string    `json:"id"`
-	WorkspaceID  string    `json:"workspace_id"`
-	ProjectID    string    `json:"project_id"`
-	InvocationID string    `json:"invocation_id"`
-	JobID        string    `json:"job_id"`
-	Name         string    `json:"name"`
-	ArtifactType string    `json:"artifact_type"`
-	Status       string    `json:"status"`
-	Manifest     string    `json:"manifest"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-type ArtifactFile struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	ArtifactID  string    `json:"artifact_id"`
-	FileName    string    `json:"file_name"`
-	FilePath    string    `json:"file_path"`
-	MimeType    string    `json:"mime_type"`
-	ByteSize    int64     `json:"byte_size"`
-	SHA256      string    `json:"sha256"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-type AuditLog struct {
-	ID          string    `json:"id"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProjectID   string    `json:"project_id"`
-	UserID      string    `json:"user_id"`
-	Action      string    `json:"action"`
-	TargetType  string    `json:"target_type"`
-	TargetID    string    `json:"target_id"`
-	Metadata    string    `json:"metadata"`
-	CreatedAt   time.Time `json:"created_at"`
 }

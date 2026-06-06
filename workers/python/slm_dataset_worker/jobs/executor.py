@@ -1,7 +1,6 @@
 import json
-import hashlib
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import psycopg
 
@@ -15,21 +14,14 @@ class Executor:
     def __init__(self, database_url: str) -> None:
         self.database_url = database_url
 
-    def execute(
-        self,
-        job_type: str,
-        payload: dict[str, Any],
-        progress: Callable[[str, int, str, dict[str, Any] | None], None] | None = None,
-    ) -> dict[str, Any]:
+    def execute(self, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         if job_type == "import_dataset":
-            return self.import_dataset(payload, progress)
+            return self.import_dataset(payload)
         if job_type == "export_dataset":
-            return self.export_dataset(payload, progress)
-        if job_type == "mcp_tool_invocation":
-            return self.invoke_mcp_tool(payload, progress)
+            return self.export_dataset(payload)
         raise ValueError(f"unsupported job type: {job_type}")
 
-    def import_dataset(self, payload: dict[str, Any], progress: Callable[[str, int, str, dict[str, Any] | None], None] | None = None) -> dict[str, Any]:
+    def import_dataset(self, payload: dict[str, Any]) -> dict[str, Any]:
         project_id = payload["project_id"]
         run_id = payload["run_id"]
         source_id = payload["source_id"]
@@ -43,8 +35,6 @@ class Executor:
 
         with psycopg.connect(self.database_url) as conn:
             conn.execute("UPDATE runs SET status = 'running', started_at = COALESCE(started_at, now()), updated_at = now() WHERE id = %s", (run_id,))
-            if progress:
-                progress("parse_source", 15, "开始解析数据源", {"source_id": source_id})
             for record in parse_dataset(artifact_path):
                 normalized = normalize_record(record)
                 input_text = normalized["input_text"]
@@ -99,8 +89,6 @@ class Executor:
                     (project_id, run_id, sample_id, json.dumps({"source_id": source_id}, ensure_ascii=False)),
                 )
 
-            if progress:
-                progress("waiting_review", 100, "导入完成，等待样本审核", {"sample_count": sample_count, "issue_count": issue_count})
             conn.execute(
                 """
                 UPDATE runs
@@ -118,7 +106,7 @@ class Executor:
             "status": "waiting_review",
         }
 
-    def export_dataset(self, payload: dict[str, Any], progress: Callable[[str, int, str, dict[str, Any] | None], None] | None = None) -> dict[str, Any]:
+    def export_dataset(self, payload: dict[str, Any]) -> dict[str, Any]:
         project_id = payload["project_id"]
         run_id = payload.get("run_id") or ""
         version_id = payload["dataset_version_id"]
@@ -126,8 +114,6 @@ class Executor:
         if export_root.name == "pending":
             export_root = export_root.parent / version_id
         export_root.mkdir(parents=True, exist_ok=True)
-        if progress:
-            progress("export_dataset", 20, "开始导出数据集", {"dataset_version_id": version_id})
 
         rows: list[dict[str, Any]] = []
         with psycopg.connect(self.database_url) as conn:
@@ -172,8 +158,6 @@ class Executor:
             }
             write_json(manifest_path, manifest)
             write_json(report_path, report)
-            if progress:
-                progress("write_artifacts", 80, "导出文件已写入", {"sample_count": len(rows)})
 
             conn.execute(
                 """
@@ -196,93 +180,3 @@ class Executor:
 
         return {"sample_count": len(rows), "artifact_path": str(export_root), "status": "ready"}
 
-    def invoke_mcp_tool(self, payload: dict[str, Any], progress: Callable[[str, int, str, dict[str, Any] | None], None] | None = None) -> dict[str, Any]:
-        workspace_id = payload["workspace_id"]
-        project_id = payload["project_id"]
-        invocation_id = payload["invocation_id"]
-        job_id = payload.get("job_id", "")
-        tool_name = payload["tool_name"]
-        raw_input = payload.get("input") or "{}"
-        input_data = json.loads(raw_input)
-        artifact_root = Path(payload["artifact_path"])
-        if artifact_root.name == "pending":
-            artifact_root = artifact_root.parent / invocation_id
-        artifact_root.mkdir(parents=True, exist_ok=True)
-
-        if progress:
-            progress("invoke_tool", 25, "开始执行 MCP Tool", {"tool_name": tool_name})
-
-        output = {
-            "tool_name": tool_name,
-            "input": input_data,
-            "message": "MCP Tool 已执行，产物已生成。",
-            "artifact_format": "mcp.artifact.v1",
-        }
-        result_path = artifact_root / "result.json"
-        readme_path = artifact_root / "README.md"
-        write_json(result_path, output)
-        readme_path.write_text(
-            "# MCP Tool 调用产物\n\n"
-            f"- Tool: {tool_name}\n"
-            f"- Invocation: {invocation_id}\n"
-            "- result.json 保存本次工具调用输入和输出。\n",
-            encoding="utf-8",
-        )
-
-        files = [
-            self._file_record(result_path, "application/json"),
-            self._file_record(readme_path, "text/markdown; charset=utf-8"),
-        ]
-        manifest = {
-            "schema_version": "mcp.artifact.v1",
-            "workspace_id": workspace_id,
-            "project_id": project_id,
-            "invocation_id": invocation_id,
-            "tool_name": tool_name,
-            "files": [{"name": item["name"], "sha256": item["sha256"], "bytes": item["bytes"]} for item in files],
-        }
-        manifest_path = artifact_root / "manifest.json"
-        write_json(manifest_path, manifest)
-        files.append(self._file_record(manifest_path, "application/json"))
-
-        if progress:
-            progress("register_artifact", 70, "登记 MCP 调用产物", {"file_count": len(files)})
-
-        with psycopg.connect(self.database_url) as conn:
-            artifact_id = conn.execute(
-                """
-                INSERT INTO artifacts (workspace_id, project_id, invocation_id, job_id, name, artifact_type, status, manifest)
-                VALUES (%s, %s, %s, NULLIF(%s, '')::uuid, %s, 'mcp_tool_result', 'ready', %s::jsonb)
-                RETURNING id
-                """,
-                (workspace_id, project_id, invocation_id, job_id, f"{tool_name}-artifact", json.dumps(manifest, ensure_ascii=False)),
-            ).fetchone()[0]
-            for item in files:
-                conn.execute(
-                    """
-                    INSERT INTO artifact_files (workspace_id, artifact_id, file_name, file_path, mime_type, byte_size, sha256)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """,
-                    (workspace_id, artifact_id, item["name"], item["path"], item["mime_type"], item["bytes"], item["sha256"]),
-                )
-            conn.execute(
-                """
-                UPDATE tool_invocations
-                SET status = 'succeeded', output = %s::jsonb, duration_ms = 0, updated_at = now()
-                WHERE id = %s
-                """,
-                (json.dumps({"artifact_id": str(artifact_id), "file_count": len(files)}, ensure_ascii=False), invocation_id),
-            )
-        if progress:
-            progress("completed", 100, "MCP Tool 调用完成", {"file_count": len(files)})
-        return {"artifact_path": str(artifact_root), "file_count": len(files), "status": "ready"}
-
-    def _file_record(self, path: Path, mime_type: str) -> dict[str, Any]:
-        data = path.read_bytes()
-        return {
-            "name": path.name,
-            "path": str(path),
-            "mime_type": mime_type,
-            "bytes": len(data),
-            "sha256": hashlib.sha256(data).hexdigest(),
-        }

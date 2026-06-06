@@ -1,6 +1,5 @@
 export type Project = {
   id: string;
-  workspace_id: string;
   name: string;
   description: string;
   domain: string;
@@ -55,81 +54,6 @@ export type DatasetVersion = {
   created_at: string;
 };
 
-export type Me = {
-  user: { id: string; email: string; name: string };
-  workspace: { id: string; name: string; role: string };
-  principal: { user_id: string; workspace_id: string; role: string };
-};
-
-export type MCPServer = {
-  id: string;
-  project_id: string;
-  name: string;
-  endpoint: string;
-  transport: string;
-  status: string;
-};
-
-export type MCPTool = {
-  id: string;
-  server_id: string;
-  name: string;
-  description: string;
-  input_schema: string;
-  output_schema: string;
-  enabled: boolean;
-};
-
-export type ToolInvocation = {
-  id: string;
-  project_id: string;
-  tool_id: string;
-  tool_name: string;
-  status: string;
-  input: string;
-  output: string;
-  error_message: string;
-  job_id: string;
-};
-
-export type Job = {
-  id: string;
-  invocation_id: string;
-  job_type: string;
-  status: string;
-  stage: string;
-  progress: number;
-  message: string;
-  attempts: number;
-  error_message: string;
-};
-
-export type Artifact = {
-  id: string;
-  name: string;
-  artifact_type: string;
-  status: string;
-  manifest: string;
-};
-
-export type ArtifactFile = {
-  id: string;
-  artifact_id: string;
-  file_name: string;
-  mime_type: string;
-  byte_size: number;
-  sha256: string;
-};
-
-export type AuditLog = {
-  id: string;
-  action: string;
-  target_type: string;
-  target_id: string;
-  metadata: string;
-  created_at: string;
-};
-
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -150,7 +74,6 @@ async function listRequest<T>(path: string): Promise<T[]> {
 }
 
 export const api = {
-  me: () => request<Me>("/api/me"),
   listProjects: () => listRequest<Project>("/api/projects"),
   createProject: (body: { name: string; description: string; domain: string }) =>
     request<Project>("/api/projects", { method: "POST", body: JSON.stringify(body) }),
@@ -175,17 +98,5 @@ export const api = {
     request<DatasetVersion>(`/api/projects/${projectId}/dataset-versions`, {
       method: "POST",
       body: JSON.stringify({ run_id: runId, version_name: versionName })
-    }),
-  listMCPServers: (projectId: string) => listRequest<MCPServer>(`/api/projects/${projectId}/mcp-servers`),
-  createMCPServer: (projectId: string, body: { name: string; endpoint: string; transport: string }) =>
-    request<MCPServer>(`/api/projects/${projectId}/mcp-servers`, { method: "POST", body: JSON.stringify(body) }),
-  listMCPTools: (serverId: string) => listRequest<MCPTool>(`/api/mcp-servers/${serverId}/tools`),
-  invokeMCPTool: (toolId: string, input: string) =>
-    request<ToolInvocation>(`/api/mcp-tools/${toolId}/invoke`, { method: "POST", body: JSON.stringify({ input }) }),
-  listInvocations: (projectId: string) => listRequest<ToolInvocation>(`/api/projects/${projectId}/invocations`),
-  listJobs: (projectId: string) => listRequest<Job>(`/api/projects/${projectId}/jobs`),
-  listArtifacts: (projectId: string) => listRequest<Artifact>(`/api/projects/${projectId}/artifacts`),
-  listArtifactFiles: (artifactId: string) => listRequest<ArtifactFile>(`/api/artifacts/${artifactId}/files`),
-  artifactFileDownloadUrl: (fileId: string) => `${API_BASE}/api/artifact-files/${fileId}/download`,
-  listAuditLogs: (projectId: string) => listRequest<AuditLog>(`/api/projects/${projectId}/audit-logs`)
+    })
 };
