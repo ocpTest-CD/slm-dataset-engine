@@ -7,14 +7,14 @@ import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 
 BASE_URL = os.environ.get("BASE_URL", "http://localhost:8080").rstrip("/")
 TIMEOUT_SECONDS = int(os.environ.get("SMOKE_TIMEOUT_SECONDS", "180"))
 
 
-def request(method: str, path: str, body: Any | None = None, headers: dict[str, str] | None = None) -> Any:
+def request(method: str, path: str, body: Optional[Any] = None, headers: Optional[dict[str, str]] = None) -> Any:
     data = None
     req_headers = headers or {}
     if body is not None:
