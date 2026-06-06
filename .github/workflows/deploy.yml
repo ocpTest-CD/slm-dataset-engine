@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 配置 SSH
         env:
@@ -59,4 +59,3 @@ jobs:
             docker compose -f compose.yaml ps
             curl -fsS http://127.0.0.1/healthz
           REMOTE
-
