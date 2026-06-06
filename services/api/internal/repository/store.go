@@ -59,14 +59,14 @@ func (s *Store) CreateProject(ctx context.Context, name, description, domainName
 	row := s.pool.QueryRow(ctx, `
 		INSERT INTO projects (name, description, domain)
 		VALUES ($1, $2, $3)
-		RETURNING id, name, description, domain, created_at, updated_at
+			RETURNING id, workspace_id, name, description, domain, created_at, updated_at
 	`, name, description, domainName)
 	return scanProject(row)
 }
 
 func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, name, description, domain, created_at, updated_at
+			SELECT id, workspace_id, name, description, domain, created_at, updated_at
 		FROM projects
 		ORDER BY created_at DESC
 	`)
@@ -88,7 +88,7 @@ func (s *Store) ListProjects(ctx context.Context) ([]domain.Project, error) {
 
 func (s *Store) GetProject(ctx context.Context, id string) (domain.Project, error) {
 	row := s.pool.QueryRow(ctx, `
-		SELECT id, name, description, domain, created_at, updated_at
+			SELECT id, workspace_id, name, description, domain, created_at, updated_at
 		FROM projects
 		WHERE id = $1
 	`, id)
@@ -353,8 +353,9 @@ func (s *Store) ClaimJob(ctx context.Context, workerID string) (domain.Job, erro
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
 		)
-		RETURNING id, COALESCE(project_id::text, ''), COALESCE(run_id::text, ''),
-			job_type, status, payload::text, attempts, max_attempts, error_message
+			RETURNING id, workspace_id, COALESCE(project_id::text, ''), COALESCE(run_id::text, ''),
+				COALESCE(invocation_id::text, ''), job_type, status, stage, progress, message,
+				payload::text, attempts, max_attempts, error_message
 	`, workerID)
 	return scanJob(row)
 }
@@ -396,7 +397,7 @@ type scanner interface {
 
 func scanProject(row scanner) (domain.Project, error) {
 	var project domain.Project
-	err := row.Scan(&project.ID, &project.Name, &project.Description, &project.Domain, &project.CreatedAt, &project.UpdatedAt)
+	err := row.Scan(&project.ID, &project.WorkspaceID, &project.Name, &project.Description, &project.Domain, &project.CreatedAt, &project.UpdatedAt)
 	return project, err
 }
 
@@ -426,7 +427,11 @@ func scanDatasetVersion(row scanner) (domain.DatasetVersion, error) {
 
 func scanJob(row scanner) (domain.Job, error) {
 	var job domain.Job
-	err := row.Scan(&job.ID, &job.ProjectID, &job.RunID, &job.JobType, &job.Status, &job.Payload, &job.Attempts, &job.MaxAttempts, &job.ErrorMessage)
+	err := row.Scan(
+		&job.ID, &job.WorkspaceID, &job.ProjectID, &job.RunID, &job.InvocationID,
+		&job.JobType, &job.Status, &job.Stage, &job.Progress, &job.Message,
+		&job.Payload, &job.Attempts, &job.MaxAttempts, &job.ErrorMessage,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Job{}, ErrNoJob
 	}

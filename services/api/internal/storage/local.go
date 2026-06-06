@@ -52,3 +52,7 @@ func (s *Local) SaveSource(projectID, filename string, reader io.Reader) (SavedF
 func (s *Local) ExportPath(projectID, versionID string) string {
 	return filepath.Join(s.root, "exports", projectID, versionID)
 }
+
+func (s *Local) InvocationArtifactPath(projectID, invocationID string) string {
+	return filepath.Join(s.root, "mcp-artifacts", projectID, invocationID)
+}

@@ -38,8 +38,16 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.listProjects(w, req)
 	case req.Method == http.MethodPost && match(parts, "api", "projects"):
 		r.createProject(w, req)
+	case req.Method == http.MethodGet && match(parts, "api", "me"):
+		r.getMe(w, req)
+	case req.Method == http.MethodGet && match(parts, "api", "workspaces"):
+		r.listWorkspaces(w, req)
 	case req.Method == http.MethodGet && len(parts) == 3 && parts[0] == "api" && parts[1] == "projects":
 		r.getProject(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "mcp-servers":
+		r.listMCPServers(w, req, parts[2])
+	case req.Method == http.MethodPost && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "mcp-servers":
+		r.createMCPServer(w, req, parts[2])
 	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "sources":
 		r.listSources(w, req, parts[2])
 	case req.Method == http.MethodPost && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "sources":
@@ -58,6 +66,26 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.listDatasetVersions(w, req, parts[2])
 	case req.Method == http.MethodPost && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "dataset-versions":
 		r.createDatasetVersion(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp-servers" && parts[3] == "tools":
+		r.listMCPTools(w, req, parts[2])
+	case req.Method == http.MethodPost && len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp-servers" && parts[3] == "tools":
+		r.createMCPTool(w, req, parts[2])
+	case req.Method == http.MethodPost && len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp-tools" && parts[3] == "invoke":
+		r.invokeMCPTool(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "invocations":
+		r.listInvocations(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "jobs":
+		r.listProjectJobs(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "jobs" && parts[3] == "events":
+		r.listJobEvents(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "artifacts":
+		r.listArtifacts(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "artifacts" && parts[3] == "files":
+		r.listArtifactFiles(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "artifact-files" && parts[3] == "download":
+		r.downloadArtifactFile(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "audit-logs":
+		r.listAuditLogs(w, req, parts[2])
 	case req.Method == http.MethodPost && match(parts, "api", "jobs", "claim"):
 		r.claimJob(w, req)
 	case req.Method == http.MethodPatch && len(parts) == 4 && parts[0] == "api" && parts[1] == "jobs":
@@ -185,6 +213,10 @@ func (r *Router) updateJob(w http.ResponseWriter, req *http.Request, jobID, acti
 	var body struct {
 		Result       json.RawMessage `json:"result"`
 		ErrorMessage string          `json:"error_message"`
+		Stage        string          `json:"stage"`
+		Progress     int             `json:"progress"`
+		Message      string          `json:"message"`
+		Metadata     json.RawMessage `json:"metadata"`
 	}
 	_ = readJSON(req, &body)
 
@@ -194,6 +226,12 @@ func (r *Router) updateJob(w http.ResponseWriter, req *http.Request, jobID, acti
 		err = r.app.MarkJobRunning(req.Context(), jobID)
 	case "heartbeat":
 		err = r.app.HeartbeatJob(req.Context(), jobID)
+	case "progress":
+		metadata := "{}"
+		if len(body.Metadata) > 0 {
+			metadata = string(body.Metadata)
+		}
+		err = r.app.UpdateJobProgress(req.Context(), jobID, body.Stage, body.Progress, body.Message, metadata)
 	case "complete":
 		result := "{}"
 		if len(body.Result) > 0 {
@@ -272,7 +310,7 @@ func withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PATCH,OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
 		if req.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return

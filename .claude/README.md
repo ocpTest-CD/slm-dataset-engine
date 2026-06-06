@@ -21,6 +21,8 @@
   - 涉及代码提交、评审、文件规模、命名、敏感数据、Git 操作、协作边界时阅读。
 - `.claude/development-plan.md`
   - 涉及开发计划、模块划分、数据流转、状态机、阶段验收时阅读。
+- `.claude/mcp-productization-plan.md`
+  - 涉及 MCP 产品化、Workspace、简单权限、MCP Registry、Tool Invocation、Job 可见性、Artifact 下载和审计日志时阅读。
 
 ## 阅读原则
 
