@@ -6,7 +6,6 @@
 
 :80 {
     encode zstd gzip
-    root * /srv/site
 
     header {
         X-Content-Type-Options nosniff
@@ -18,7 +17,11 @@
         respond "ok" 200
     }
 
-    file_server
+    handle /api/* {
+        reverse_proxy api:8080
+    }
+
+    reverse_proxy web:80
 }
 
 # Keep Nginx as the public reverse proxy after DNS is fixed:

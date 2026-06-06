@@ -1,6 +1,41 @@
 name: slm-dataset-engine
 
 services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/ocptest-cd/slm-dataset-engine-api:latest}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      LISTEN_ADDR: ":8080"
+      MIGRATIONS_DIR: /app/migrations
+      ARTIFACTS_DIR: /var/lib/slm-dataset-engine/artifacts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./artifacts:/var/lib/slm-dataset-engine/artifacts
+
+  worker:
+    image: ${WORKER_IMAGE:-ghcr.io/ocptest-cd/slm-dataset-engine-worker:latest}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      API_BASE_URL: http://api:8080
+      ARTIFACTS_DIR: /var/lib/slm-dataset-engine/artifacts
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./artifacts:/var/lib/slm-dataset-engine/artifacts
+    depends_on:
+      - api
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/ocptest-cd/slm-dataset-engine-web:latest}
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -8,7 +43,6 @@ services:
       - "127.0.0.1:18080:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./site:/srv/site:ro
       - ./artifacts:/var/lib/slm-dataset-engine/artifacts:ro
       - caddy_data:/data
       - caddy_config:/config
@@ -17,6 +51,9 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    depends_on:
+      - api
+      - web
 
 volumes:
   caddy_data:

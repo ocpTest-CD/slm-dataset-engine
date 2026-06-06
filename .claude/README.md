@@ -19,6 +19,8 @@
   - 涉及 React + Vite、Go、Python Worker、数据库、任务队列、API、测试时阅读。
 - `.claude/collaboration.md`
   - 涉及代码提交、评审、文件规模、命名、敏感数据、Git 操作、协作边界时阅读。
+- `.claude/development-plan.md`
+  - 涉及开发计划、模块划分、数据流转、状态机、阶段验收时阅读。
 
 ## 阅读原则
 

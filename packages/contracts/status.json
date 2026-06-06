@@ -1,0 +1,9 @@
+{
+  "source": ["created", "uploaded", "ready", "blocked", "archived"],
+  "run": ["created", "queued", "running", "waiting_review", "exporting", "completed", "failed", "canceled", "paused"],
+  "job": ["pending", "claimed", "running", "succeeded", "failed", "failed_final", "canceled", "stale"],
+  "sample": ["imported", "quality_checked", "pending_review", "accepted", "rejected", "edited", "exported"],
+  "dataset_version": ["draft", "building", "ready", "published", "failed", "deprecated"],
+  "job_type": ["import_dataset", "export_dataset"]
+}
+

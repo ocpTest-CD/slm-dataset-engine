@@ -1,0 +1,17 @@
+[project]
+name = "slm-dataset-worker"
+version = "0.1.0"
+description = "Python worker for SLM Dataset Engine"
+requires-python = ">=3.11"
+dependencies = [
+  "psycopg[binary]>=3.2.0",
+  "pydantic>=2.8.0"
+]
+
+[project.scripts]
+slm-dataset-worker = "slm_dataset_worker.main:main"
+
+[build-system]
+requires = ["setuptools>=70.0"]
+build-backend = "setuptools.build_meta"
+

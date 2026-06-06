@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SLM Dataset Engine Job Payload",
+  "type": "object",
+  "required": ["job_type"],
+  "properties": {
+    "job_type": {
+      "type": "string",
+      "enum": ["import_dataset", "export_dataset"]
+    },
+    "project_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "source_id": { "type": "string" },
+    "dataset_version_id": { "type": "string" },
+    "artifact_path": { "type": "string" },
+    "export_path": { "type": "string" },
+    "recipe": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
+

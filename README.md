@@ -121,10 +121,40 @@ AI 或协作者进入项目后，应先读取：
 
 初始部署提供 `/healthz` 和静态占位页面。当前服务器已有 Nginx 占用公网 80/443，因此 Compose 中的 Caddy 只监听 `127.0.0.1:18080`，公网域名由 Nginx 反向代理进入。当前 `data.yi-flow.com` DNS 尚未指向生产服务器，DNS A 记录改到服务器后再启用 HTTPS 证书配置。
 
+## 本地开发
+
+前端：
+
+```bash
+cd apps/web
+npm install
+npm run dev
+```
+
+Go API：
+
+```bash
+cd services/api
+go mod tidy
+go run ./cmd/server
+```
+
+Python Worker：
+
+```bash
+cd workers/python
+python3.11 -m venv .venv
+. .venv/bin/activate
+pip install .
+slm-dataset-worker
+```
+
+本地需要 PostgreSQL，并设置 `DATABASE_URL`。Worker 要求 Python 3.11 或更高版本；生产镜像使用 Python 3.12。
+
 ## 当前状态
 
 - 已初始化项目级 `AGENTS.md`。
 - 已初始化 `.claude/` 上下文目录。
 - 已确定 React + Vite、Go、Python Worker 的技术路线。
-- 已增加生产服务器 healthcheck 网关和占位页面部署骨架。
-- 尚未初始化前端、后端、Worker 和数据库迁移代码。
+- 已实现 Go API、Python Worker、React 工作台和 PostgreSQL schema 的 MVP 闭环。
+- 已接入生产 Docker Compose 与 GitHub Actions 镜像部署流程。

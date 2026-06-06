@@ -12,13 +12,38 @@ concurrency:
 
 jobs:
   deploy:
-    name: 部署 healthcheck 网关
+    name: 构建并部署工作台
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+
+      - name: 计算镜像名称
+        run: |
+          set -euo pipefail
+          IMAGE_NAMESPACE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}"
+          echo "API_IMAGE=$IMAGE_NAMESPACE/slm-dataset-engine-api:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "WEB_IMAGE=$IMAGE_NAMESPACE/slm-dataset-engine-web:${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "WORKER_IMAGE=$IMAGE_NAMESPACE/slm-dataset-engine-worker:${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: 登录 GHCR
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: 构建并推送镜像
+        run: |
+          set -euo pipefail
+          docker build -f services/api/Dockerfile -t "$API_IMAGE" .
+          docker build -f apps/web/Dockerfile -t "$WEB_IMAGE" .
+          docker build -f workers/python/Dockerfile -t "$WORKER_IMAGE" .
+          docker push "$API_IMAGE"
+          docker push "$WEB_IMAGE"
+          docker push "$WORKER_IMAGE"
 
       - name: 配置 SSH
         env:
@@ -47,16 +72,15 @@ jobs:
           ssh slm-dataset-engine 'mkdir -p /opt/slm-dataset-engine/artifacts /opt/slm-dataset-engine/site'
           scp deploy/compose.yaml slm-dataset-engine:/opt/slm-dataset-engine/compose.yaml
           scp deploy/Caddyfile slm-dataset-engine:/opt/slm-dataset-engine/Caddyfile
-          scp -r deploy/site/. slm-dataset-engine:/opt/slm-dataset-engine/site/
 
       - name: 启动服务
         run: |
           set -euo pipefail
-          ssh slm-dataset-engine <<'REMOTE'
+          ssh slm-dataset-engine "API_IMAGE='$API_IMAGE' WEB_IMAGE='$WEB_IMAGE' WORKER_IMAGE='$WORKER_IMAGE' bash -s" <<'REMOTE'
             set -euo pipefail
             cd /opt/slm-dataset-engine
-            docker compose -f compose.yaml pull
-            docker compose -f compose.yaml up -d --remove-orphans
+            API_IMAGE="${API_IMAGE}" WEB_IMAGE="${WEB_IMAGE}" WORKER_IMAGE="${WORKER_IMAGE}" docker compose -f compose.yaml pull
+            API_IMAGE="${API_IMAGE}" WEB_IMAGE="${WEB_IMAGE}" WORKER_IMAGE="${WORKER_IMAGE}" docker compose -f compose.yaml up -d --remove-orphans
             docker compose -f compose.yaml ps
-            curl -fsS http://127.0.0.1/healthz
+            curl -fsS http://127.0.0.1:18080/healthz
           REMOTE
