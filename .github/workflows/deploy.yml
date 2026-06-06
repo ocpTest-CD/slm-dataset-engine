@@ -1,0 +1,62 @@
+name: 部署到生产服务器
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: 部署 healthcheck 网关
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/slm_dataset_engine_deploy
+          chmod 600 ~/.ssh/slm_dataset_engine_deploy
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host slm-dataset-engine
+            HostName $DEPLOY_HOST
+            Port ${DEPLOY_PORT:-22}
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/slm_dataset_engine_deploy
+            IdentitiesOnly yes
+          EOF
+
+      - name: 上传部署文件
+        run: |
+          set -euo pipefail
+          ssh slm-dataset-engine 'mkdir -p /opt/slm-dataset-engine/artifacts'
+          scp deploy/compose.yaml slm-dataset-engine:/opt/slm-dataset-engine/compose.yaml
+          scp deploy/Caddyfile slm-dataset-engine:/opt/slm-dataset-engine/Caddyfile
+
+      - name: 启动服务
+        run: |
+          set -euo pipefail
+          ssh slm-dataset-engine <<'REMOTE'
+            set -euo pipefail
+            cd /opt/slm-dataset-engine
+            docker compose -f compose.yaml pull
+            docker compose -f compose.yaml up -d --remove-orphans
+            docker compose -f compose.yaml ps
+            curl -fsS http://127.0.0.1/healthz
+          REMOTE
+

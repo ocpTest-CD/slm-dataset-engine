@@ -109,9 +109,21 @@ AI 或协作者进入项目后，应先读取：
 - 处理数据时优先输出摘要统计，避免在日志、终端或文档中暴露大量原始样本。
 - AI 生成或 AI 评审的数据必须记录模型、prompt、采样参数、后处理规则和安全策略。
 
+## 部署入口
+
+当前仓库已提供最小生产部署骨架：
+
+- [deploy/compose.yaml](/Users/Zhuanz/work-space/slm/slm-dataset-engine/deploy/compose.yaml)：生产服务器 Docker Compose 入口。
+- [deploy/Caddyfile](/Users/Zhuanz/work-space/slm/slm-dataset-engine/deploy/Caddyfile)：Caddy healthcheck 网关配置。
+- [deploy/nginx-data.yi-flow.com.conf](/Users/Zhuanz/work-space/slm/slm-dataset-engine/deploy/nginx-data.yi-flow.com.conf)：服务器 Nginx 反向代理配置。
+- [.github/workflows/deploy.yml](/Users/Zhuanz/work-space/slm/slm-dataset-engine/.github/workflows/deploy.yml)：GitHub Actions 部署流程。
+
+初始部署只提供 `/healthz` 和网关占位响应。当前服务器已有 Nginx 占用公网 80/443，因此 Compose 中的 Caddy 只监听 `127.0.0.1:18080`，公网域名由 Nginx 反向代理进入。当前 `data.yi-flow.com` DNS 尚未指向生产服务器，DNS A 记录改到服务器后再启用 HTTPS 证书配置。
+
 ## 当前状态
 
 - 已初始化项目级 `AGENTS.md`。
 - 已初始化 `.claude/` 上下文目录。
 - 已确定 React + Vite、Go、Python Worker 的技术路线。
+- 已增加生产服务器 healthcheck 网关部署骨架。
 - 尚未初始化前端、后端、Worker 和数据库迁移代码。

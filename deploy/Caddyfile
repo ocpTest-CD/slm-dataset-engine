@@ -1,0 +1,30 @@
+{
+    # DNS for data.yi-flow.com is not pointed to this server yet.
+    # Nginx owns public 80/443 on the server. Caddy is an internal gateway.
+    auto_https off
+}
+
+:80 {
+    encode zstd gzip
+
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+    }
+
+    handle /healthz {
+        respond "ok" 200
+    }
+
+    respond "slm-dataset-engine deployment gateway\n" 200
+}
+
+# Keep Nginx as the public reverse proxy after DNS is fixed:
+#
+# server {
+#     listen 80;
+#     server_name data.yi-flow.com;
+#     location / {
+#         proxy_pass http://127.0.0.1:18080;
+#     }
+# }

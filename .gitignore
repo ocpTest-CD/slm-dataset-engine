@@ -1,0 +1,23 @@
+.DS_Store
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime outputs
+artifacts/
+backups/
+logs/
+tmp/
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Language caches
+node_modules/
+__pycache__/
+.pytest_cache/
+
