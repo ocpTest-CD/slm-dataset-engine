@@ -2,7 +2,7 @@
 
 `slm-dataset-engine` 是面向小模型研发的数据集流程工作台。它的目标不是堆叠清洗脚本，而是把数据集接入、处理、审核、质检、版本、导出和评测闭环变成可复现、可追溯、可协作的工程系统。
 
-当前项目处于初始化阶段，详细技术方案、架构图和协作规范保存在 `.claude/` 目录中。
+详细技术方案、架构图和协作规范保存在 `.claude/` 目录中。
 
 ## 项目目标
 
@@ -41,7 +41,7 @@
 4. 运行流程并记录 Run。
 5. 生成 Sample、QualityIssue 和统计摘要。
 6. 在前端表格中审核样本。
-7. 导出 DatasetVersion、JSONL、manifest 和 quality report。
+7. 导出 DatasetVersion、RAG ZIP、JSONL、manifest 和 quality report。
 
 第二阶段再加入 AI 辅助生成、embedding、judge 评分、评测关联和更复杂的流程模板。
 
@@ -151,10 +151,51 @@ slm-dataset-worker
 
 本地需要 PostgreSQL，并设置 `DATABASE_URL`。Worker 要求 Python 3.11 或更高版本；生产镜像使用 Python 3.12。
 
+## 工作台闭环
+
+当前版本已经按数据集工作台方向打通以下链路：
+
+1. 上传 JSONL、CSV、Markdown 或文本数据源。
+2. 创建 Run 后由 Python Worker 解析数据源，生成 Sample、QualityIssue 和 LineageEvent。
+3. 页面展示 Job/Runner 阶段、进度、消息和失败信息。
+4. 样本审核支持接受、拒绝、人工编辑、保存修改历史。
+5. 质量问题按 Sample 关联展示，便于定位和修复。
+6. 创建 DatasetVersion 后导出可下载的 RAG ZIP 包。
+
+## RAG 导出包
+
+版本导出完成后，工作台会生成 `rag-dataset.zip`，包内包含：
+
+- `chunks.jsonl`：RAG 检索系统可直接导入的 chunk 数据，每行包含 `id`、`text` 和 `metadata`。
+- `documents.jsonl`：来源文档聚合信息。
+- `dataset.jsonl`：已接受样本的原始训练/问答数据。
+- `manifest.json`：版本、项目、样本数、文件清单和 chunk 策略。
+- `quality_report.json`：导出质量摘要。
+- `README.md`：导出包说明。
+
+导出只包含 `accepted` 样本。需要进入 RAG 系统时，优先导入 `chunks.jsonl`，并把 `metadata.sample_id`、`metadata.source_id`、`metadata.dataset_version_id` 保留下来，便于追溯。
+
+## 端到端烟测
+
+本地 API、Worker 和 Web 启动后可以执行：
+
+```bash
+python3 scripts/smoke_dataset_workbench.py
+```
+
+线上验证可以执行：
+
+```bash
+BASE_URL=https://data.yi-flow.com python3 scripts/smoke_dataset_workbench.py
+```
+
+烟测会创建一个临时项目，依次验证创建项目、上传数据源、运行导入、人工编辑、接受样本、创建版本、下载并检查 RAG ZIP。
+
 ## 当前状态
 
 - 已初始化项目级 `AGENTS.md`。
 - 已初始化 `.claude/` 上下文目录。
 - 已确定 React + Vite、Go、Python Worker 的技术路线。
-- 已实现 Go API、Python Worker、React 工作台和 PostgreSQL schema 的 MVP 闭环。
+- 已实现 Go API、Python Worker、React 工作台和 PostgreSQL schema 的数据集闭环。
+- 已支持 Job/Runner 状态回传、样本人工编辑、质量问题联动和 RAG ZIP 下载。
 - 已接入生产 Docker Compose 与 GitHub Actions 镜像部署流程。

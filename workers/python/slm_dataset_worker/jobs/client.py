@@ -38,6 +38,13 @@ class APIClient:
     def heartbeat(self, job_id: str) -> None:
         self._request("PATCH", f"/api/jobs/{job_id}/heartbeat", {})
 
+    def progress(self, job_id: str, stage: str, progress: int, message: str, metadata: dict[str, Any] | None = None) -> None:
+        self._request(
+            "PATCH",
+            f"/api/jobs/{job_id}/progress",
+            {"stage": stage, "progress": progress, "message": message, "metadata": metadata or {}},
+        )
+
     def complete(self, job_id: str, result: dict[str, Any]) -> None:
         self._request("PATCH", f"/api/jobs/{job_id}/complete", {"result": result})
 
@@ -64,4 +71,3 @@ class APIClient:
         if not raw:
             return {}
         return json.loads(raw.decode("utf-8"))
-

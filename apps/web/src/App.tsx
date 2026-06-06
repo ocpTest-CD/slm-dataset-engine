@@ -1,17 +1,43 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { api, DatasetVersion, Project, QualityIssue, Run, Sample, Source } from "./api/client";
+import {
+  api,
+  DatasetVersion,
+  DatasetVersionFile,
+  Job,
+  Project,
+  QualityIssue,
+  Run,
+  Sample,
+  SampleVersion,
+  Source
+} from "./api/client";
 
 type LoadState = "idle" | "loading" | "error";
+type SampleEdit = {
+  sampleId: string;
+  input_text: string;
+  output_text: string;
+  change_reason: string;
+  status: string;
+};
+
+const ACTIVE_JOB_STATUS = new Set(["pending", "claimed", "running"]);
+const ACTIVE_RUN_STATUS = new Set(["queued", "running"]);
+const ACTIVE_VERSION_STATUS = new Set(["building"]);
 
 export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [sources, setSources] = useState<Source[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [issues, setIssues] = useState<QualityIssue[]>([]);
   const [versions, setVersions] = useState<DatasetVersion[]>([]);
+  const [versionFiles, setVersionFiles] = useState<Record<string, DatasetVersionFile[]>>({});
+  const [sampleVersions, setSampleVersions] = useState<SampleVersion[]>([]);
   const [sampleStatus, setSampleStatus] = useState("");
+  const [editingSample, setEditingSample] = useState<SampleEdit | null>(null);
   const [state, setState] = useState<LoadState>("idle");
   const [message, setMessage] = useState("");
 
@@ -20,6 +46,15 @@ export function App() {
     [projects, selectedProjectId]
   );
   const latestRun = runs[0];
+  const issueMap = useMemo(() => groupIssuesBySample(issues), [issues]);
+  const activeJobs = useMemo(() => jobs.filter((job) => ACTIVE_JOB_STATUS.has(job.status)), [jobs]);
+  const shouldPoll = useMemo(
+    () =>
+      activeJobs.length > 0 ||
+      runs.some((run) => ACTIVE_RUN_STATUS.has(run.status)) ||
+      versions.some((version) => ACTIVE_VERSION_STATUS.has(version.status)),
+    [activeJobs.length, runs, versions]
+  );
 
   useEffect(() => {
     void refreshProjects();
@@ -30,6 +65,14 @@ export function App() {
       void refreshProjectData(selectedProjectId);
     }
   }, [selectedProjectId, sampleStatus]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !shouldPoll) return;
+    const timer = window.setInterval(() => {
+      void refreshProjectData(selectedProjectId, false);
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [selectedProjectId, shouldPoll, sampleStatus]);
 
   async function runAction<T>(action: () => Promise<T>, nextMessage: string) {
     setState("loading");
@@ -55,19 +98,26 @@ export function App() {
     }
   }
 
-  async function refreshProjectData(projectId: string) {
-    const [nextSources, nextRuns, nextSamples, nextIssues, nextVersions] = await Promise.all([
+  async function refreshProjectData(projectId: string, showMessage = false) {
+    const [nextSources, nextRuns, nextJobs, nextSamples, nextIssues, nextVersions] = await Promise.all([
       api.listSources(projectId),
       api.listRuns(projectId),
+      api.listJobs(projectId),
       api.listSamples(projectId, sampleStatus),
       api.listQualityIssues(projectId),
       api.listVersions(projectId)
     ]);
+    const fileEntries = await Promise.all(
+      nextVersions.map(async (version) => [version.id, await api.listVersionFiles(version.id)] as const)
+    );
     setSources(nextSources);
     setRuns(nextRuns);
+    setJobs(nextJobs);
     setSamples(nextSamples);
     setIssues(nextIssues);
     setVersions(nextVersions);
+    setVersionFiles(Object.fromEntries(fileEntries));
+    if (showMessage) setMessage("项目数据已刷新");
   }
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
@@ -110,10 +160,39 @@ export function App() {
     await refreshProjectData(selectedProjectId);
   }
 
+  async function openSample(sample: Sample) {
+    setEditingSample({
+      sampleId: sample.id,
+      input_text: sample.input_text,
+      output_text: sample.output_text,
+      change_reason: "",
+      status: sample.status === "rejected" ? "pending_review" : sample.status
+    });
+    setSampleVersions(await api.listSampleVersions(sample.id));
+  }
+
+  async function saveSample(nextStatus?: string) {
+    if (!selectedProjectId || !editingSample) return;
+    const status = nextStatus ?? editingSample.status;
+    const sample = await runAction(
+      () => api.editSample(editingSample.sampleId, { ...editingSample, status }),
+      status === "accepted" ? "样本已编辑并接受" : "样本已保存"
+    );
+    setEditingSample({
+      sampleId: sample.id,
+      input_text: sample.input_text,
+      output_text: sample.output_text,
+      change_reason: "",
+      status: sample.status
+    });
+    setSampleVersions(await api.listSampleVersions(sample.id));
+    await refreshProjectData(selectedProjectId);
+  }
+
   async function createVersion() {
     if (!selectedProjectId) return;
-    const name = `dataset-${new Date().toISOString().slice(0, 10)}`;
-    await runAction(() => api.createVersion(selectedProjectId, latestRun?.id ?? "", name), "导出任务已创建");
+    const name = `rag-${new Date().toISOString().slice(0, 10)}`;
+    await runAction(() => api.createVersion(selectedProjectId, latestRun?.id ?? "", name), "RAG 导出任务已创建");
     await refreshProjectData(selectedProjectId);
   }
 
@@ -131,7 +210,7 @@ export function App() {
         <form className="create-form" onSubmit={createProject}>
           <label>
             项目名称
-            <input name="name" placeholder="如 react-hooks-sft" required />
+            <input name="name" placeholder="如 rag-knowledge-base" required />
           </label>
           <label>
             领域
@@ -141,9 +220,7 @@ export function App() {
             目标
             <textarea name="description" rows={3} placeholder="这批数据要改善什么能力" />
           </label>
-          <button type="submit" disabled={state === "loading"}>
-            新建项目
-          </button>
+          <button type="submit" disabled={state === "loading"}>新建项目</button>
         </form>
 
         <nav className="project-list" aria-label="项目列表">
@@ -166,7 +243,7 @@ export function App() {
             <p className="eyebrow">Workbench</p>
             <h1>{selectedProject?.name ?? "创建一个数据集项目"}</h1>
           </div>
-          <button onClick={() => selectedProjectId && refreshProjectData(selectedProjectId)}>刷新</button>
+          <button onClick={() => selectedProjectId && refreshProjectData(selectedProjectId, true)}>刷新</button>
         </header>
 
         {message && <div className={state === "error" ? "notice error" : "notice"}>{message}</div>}
@@ -174,8 +251,8 @@ export function App() {
         <section className="metrics">
           <Metric label="数据源" value={sources.length} />
           <Metric label="运行" value={runs.length} />
+          <Metric label="任务" value={jobs.length} />
           <Metric label="样本" value={samples.length} />
-          <Metric label="质量问题" value={issues.length} />
           <Metric label="版本" value={versions.length} />
         </section>
 
@@ -204,26 +281,29 @@ export function App() {
 
           <div className="panel">
             <div className="panel-title">
-              <h2>运行与导出</h2>
-              <button onClick={createVersion} disabled={!latestRun}>创建版本</button>
+              <h2>运行状态</h2>
+              <button onClick={createVersion} disabled={!latestRun}>导出 RAG ZIP</button>
             </div>
             <div className="list">
+              {jobs.map((job) => (
+                <article key={job.id} className="job-row">
+                  <div className="job-head">
+                    <strong>{job.job_type}</strong>
+                    <span className={`status ${job.status}`}>{job.status}</span>
+                  </div>
+                  <div className="progress-track"><span style={{ width: `${job.progress || 0}%` }} /></div>
+                  <p>{job.stage || "queued"} · {job.message || job.error_message || "等待处理"} · {job.progress || 0}%</p>
+                </article>
+              ))}
               {runs.map((run) => (
-                <article key={run.id} className="row">
+                <article key={run.id} className="row compact">
                   <div>
-                    <strong>{run.status}</strong>
-                    <span>{run.total_samples} 样本 · {run.issue_count} 问题 · {run.progress}%</span>
+                    <strong>Run {run.status}</strong>
+                    <span>{run.total_samples} 样本 · {run.accepted_samples} 接受 · {run.issue_count} 问题</span>
                   </div>
                 </article>
               ))}
-              {versions.map((version) => (
-                <article key={version.id} className="row version">
-                  <div>
-                    <strong>{version.version_name}</strong>
-                    <span>{version.status} · {version.sample_count} 样本</span>
-                  </div>
-                </article>
-              ))}
+              {jobs.length === 0 && runs.length === 0 && <p className="empty">点击数据源的运行按钮后，这里会显示 Worker 状态。</p>}
             </div>
           </div>
         </section>
@@ -234,26 +314,104 @@ export function App() {
             <select value={sampleStatus} onChange={(event) => setSampleStatus(event.target.value)}>
               <option value="">全部状态</option>
               <option value="pending_review">待审核</option>
+              <option value="edited">已编辑</option>
               <option value="accepted">已接受</option>
               <option value="rejected">已拒绝</option>
             </select>
           </div>
-          <div className="sample-table">
-            {samples.map((sample) => (
-              <article key={sample.id} className="sample-row">
-                <div>
-                  <span className={`status ${sample.status}`}>{sample.status}</span>
-                  <strong>{truncate(sample.input_text, 150)}</strong>
-                  <p>{truncate(sample.output_text || "无输出字段", 180)}</p>
+          <div className="review-layout">
+            <div className="sample-table">
+              {samples.map((sample) => {
+                const sampleIssues = issueMap[sample.id] ?? [];
+                return (
+                  <article key={sample.id} className="sample-row">
+                    <div>
+                      <span className={`status ${sample.status}`}>{sample.status}</span>
+                      {sampleIssues.length > 0 && <span className="issue-pill">{sampleIssues.length} 个问题</span>}
+                      <strong>{truncate(sample.input_text, 150)}</strong>
+                      <p>{truncate(sample.output_text || "无输出字段", 180)}</p>
+                    </div>
+                    <div className="sample-actions">
+                      <span>{sample.quality_score ?? "-"} 分</span>
+                      <button onClick={() => openSample(sample)}>编辑</button>
+                      <button onClick={() => reviewSample(sample.id, "accepted")}>接受</button>
+                      <button className="secondary" onClick={() => reviewSample(sample.id, "rejected")}>拒绝</button>
+                    </div>
+                  </article>
+                );
+              })}
+              {samples.length === 0 && <p className="empty">运行完成后，样本会出现在这里。</p>}
+            </div>
+
+            {editingSample && (
+              <aside className="editor">
+                <div className="panel-title">
+                  <h3>人工干预</h3>
+                  <button className="secondary" onClick={() => setEditingSample(null)}>关闭</button>
                 </div>
-                <div className="sample-actions">
-                  <span>{sample.quality_score ?? "-"} 分</span>
-                  <button onClick={() => reviewSample(sample.id, "accepted")}>接受</button>
-                  <button onClick={() => reviewSample(sample.id, "rejected")}>拒绝</button>
+                <label>
+                  输入
+                  <textarea
+                    rows={7}
+                    value={editingSample.input_text}
+                    onChange={(event) => setEditingSample({ ...editingSample, input_text: event.target.value })}
+                  />
+                </label>
+                <label>
+                  输出
+                  <textarea
+                    rows={9}
+                    value={editingSample.output_text}
+                    onChange={(event) => setEditingSample({ ...editingSample, output_text: event.target.value })}
+                  />
+                </label>
+                <label>
+                  修改说明
+                  <input
+                    value={editingSample.change_reason}
+                    placeholder="如补齐答案、修复格式、删除噪声"
+                    onChange={(event) => setEditingSample({ ...editingSample, change_reason: event.target.value })}
+                  />
+                </label>
+                <div className="editor-actions">
+                  <button onClick={() => saveSample("edited")}>保存</button>
+                  <button onClick={() => saveSample("accepted")}>保存并接受</button>
+                  <button className="secondary" onClick={() => saveSample("rejected")}>保存并拒绝</button>
+                </div>
+                <div className="issue-list">
+                  {(issueMap[editingSample.sampleId] ?? []).map((issue) => (
+                    <p key={issue.id}>{issue.severity} · {issue.message}</p>
+                  ))}
+                  {sampleVersions.map((version) => (
+                    <p key={version.id}>v{version.version} · {version.edited_by} · {version.change_reason || "无说明"}</p>
+                  ))}
+                </div>
+              </aside>
+            )}
+          </div>
+        </section>
+
+        <section className="sample-panel">
+          <div className="panel-title">
+            <h2>版本与下载</h2>
+            <button onClick={createVersion} disabled={!latestRun}>创建 RAG 版本</button>
+          </div>
+          <div className="list">
+            {versions.map((version) => (
+              <article key={version.id} className="version-card">
+                <div>
+                  <strong>{version.version_name}</strong>
+                  <span>{version.status} · {version.sample_count} 样本</span>
+                </div>
+                <div className="download-grid">
+                  {(versionFiles[version.id] ?? []).map((file) => (
+                    <a key={file.id} href={api.versionFileDownloadUrl(file.id)}>{file.file_name} · {formatBytes(file.byte_size)}</a>
+                  ))}
+                  {(versionFiles[version.id] ?? []).length === 0 && <span>导出完成后生成 RAG ZIP 和 JSONL 文件。</span>}
                 </div>
               </article>
             ))}
-            {samples.length === 0 && <p className="empty">运行完成后，样本会出现在这里。</p>}
+            {versions.length === 0 && <p className="empty">接受样本后创建版本，系统会生成可导入 RAG 的 ZIP 包。</p>}
           </div>
         </section>
       </section>
@@ -270,6 +428,14 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
+function groupIssuesBySample(issues: QualityIssue[]) {
+  return issues.reduce<Record<string, QualityIssue[]>>((groups, issue) => {
+    if (!issue.sample_id) return groups;
+    groups[issue.sample_id] = [...(groups[issue.sample_id] ?? []), issue];
+    return groups;
+  }, {});
+}
+
 function truncate(value: string, max: number) {
   if (value.length <= max) return value;
   return `${value.slice(0, max)}...`;
@@ -280,4 +446,3 @@ function formatBytes(value: number) {
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
-

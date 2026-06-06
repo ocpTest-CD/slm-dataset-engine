@@ -1,7 +1,7 @@
 # 开发计划：全链路数据集工作台 MVP
 
 - 日期：2026-06-06
-- 状态：执行中
+- 状态：5 阶段闭环执行完成
 - 目标：打通「导入数据 -> 运行流程 -> 生成样本与质量问题 -> 人工审核 -> 导出数据集版本」闭环。
 
 ## 目标边界
@@ -15,7 +15,7 @@
 - Python Worker 处理 JSONL、CSV、Markdown。
 - 样本与质量问题入库。
 - 前端样本审核。
-- DatasetVersion 导出 JSONL、manifest 和质量报告。
+- DatasetVersion 导出 RAG ZIP、JSONL、manifest 和质量报告。
 
 ## 项目划分
 
@@ -157,11 +157,43 @@ published -> deprecated
    - GitHub Actions 构建镜像并部署。
    - 验证生产 healthcheck 和占位/工作台页面。
 
+## 2026-06-07 五阶段闭环增强
+
+### 阶段 1：Job / Runner 状态可见
+
+- `jobs` 增加 `stage`、`progress`、`message`。
+- 新增 `job_events` 记录 Worker progress 事件。
+- 前端轮询项目内 Job、Run、Version，展示阶段、进度条和错误消息。
+
+### 阶段 2：样本人工干预
+
+- 样本审核支持编辑输入、输出和修改说明。
+- 每次编辑写入 `sample_versions`。
+- 编辑后可保存为 `edited`，也可直接保存并接受或拒绝。
+
+### 阶段 3：RAG ZIP 导出
+
+- DatasetVersion 导出只收集 `accepted` 样本。
+- Worker 生成 `rag-dataset.zip`、`chunks.jsonl`、`documents.jsonl`、`dataset.jsonl`、`manifest.json`、`quality_report.json` 和包内 `README.md`。
+- 新增 `dataset_version_files` 保存文件路径、大小、MIME 和 sha256。
+- 前端展示版本文件并提供下载入口。
+
+### 阶段 4：质量问题联动样本
+
+- `QualityIssue` API 返回 `sample_id`。
+- 前端按样本聚合问题数量，并在编辑区展示问题信息。
+
+### 阶段 5：文档和烟测
+
+- README 补充工作台闭环、RAG 导出包结构和烟测命令。
+- `scripts/smoke_dataset_workbench.py` 验证创建项目、上传、运行、编辑、接受、导出和 ZIP 文件检查。
+
 ## 验收标准
 
 - 本地可以构建 Go API、Python Worker、React Web。
 - 有 PostgreSQL 时可以跑通一条 JSONL 导入闭环。
 - Worker 能把样本和质量问题写入数据库。
-- 前端能查看项目、上传数据、触发运行、审核样本、创建导出版本。
+- 前端能查看项目、上传数据、触发运行、看到 Job 进度、编辑样本、审核样本、创建并下载 RAG 导出版本。
+- RAG ZIP 内至少包含 `chunks.jsonl`、`documents.jsonl`、`dataset.jsonl`、`manifest.json`、`quality_report.json` 和 `README.md`。
 - 生产部署 workflow 成功。
 - 单文件代码控制在 500 行以内，最多不超过 700 行。

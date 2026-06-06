@@ -53,6 +53,7 @@ type Sample struct {
 
 type QualityIssue struct {
 	ID        string    `json:"id"`
+	SampleID  string    `json:"sample_id"`
 	IssueType string    `json:"issue_type"`
 	Severity  string    `json:"severity"`
 	Message   string    `json:"message"`
@@ -76,8 +77,47 @@ type Job struct {
 	RunID        string `json:"run_id"`
 	JobType      string `json:"job_type"`
 	Status       string `json:"status"`
+	Stage        string `json:"stage"`
+	Progress     int    `json:"progress"`
+	Message      string `json:"message"`
 	Payload      string `json:"payload"`
 	Attempts     int    `json:"attempts"`
 	MaxAttempts  int    `json:"max_attempts"`
+	ClaimedBy    string `json:"claimed_by"`
 	ErrorMessage string `json:"error_message"`
+}
+
+type JobEvent struct {
+	ID        string    `json:"id"`
+	JobID     string    `json:"job_id"`
+	ProjectID string    `json:"project_id"`
+	RunID     string    `json:"run_id"`
+	EventType string    `json:"event_type"`
+	Stage     string    `json:"stage"`
+	Progress  int       `json:"progress"`
+	Message   string    `json:"message"`
+	Metadata  string    `json:"metadata"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type SampleVersion struct {
+	ID           string    `json:"id"`
+	SampleID     string    `json:"sample_id"`
+	Version      int       `json:"version"`
+	InputText    string    `json:"input_text"`
+	OutputText   string    `json:"output_text"`
+	EditedBy     string    `json:"edited_by"`
+	ChangeReason string    `json:"change_reason"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type DatasetVersionFile struct {
+	ID               string    `json:"id"`
+	DatasetVersionID string    `json:"dataset_version_id"`
+	FileName         string    `json:"file_name"`
+	FilePath         string    `json:"file_path"`
+	MimeType         string    `json:"mime_type"`
+	ByteSize         int64     `json:"byte_size"`
+	SHA256           string    `json:"sha256"`
+	CreatedAt        time.Time `json:"created_at"`
 }

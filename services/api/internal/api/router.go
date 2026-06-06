@@ -46,10 +46,16 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.uploadSource(w, req, parts[2])
 	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "runs":
 		r.listRuns(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "jobs":
+		r.listProjectJobs(w, req, parts[2])
 	case req.Method == http.MethodPost && len(parts) == 4 && parts[0] == "api" && parts[1] == "sources" && parts[3] == "runs":
 		r.startRun(w, req, parts[2])
 	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "samples":
 		r.listSamples(w, req, parts[2])
+	case req.Method == http.MethodPatch && len(parts) == 4 && parts[0] == "api" && parts[1] == "samples" && parts[3] == "edit":
+		r.editSample(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "samples" && parts[3] == "versions":
+		r.listSampleVersions(w, req, parts[2])
 	case req.Method == http.MethodPatch && len(parts) == 4 && parts[0] == "api" && parts[1] == "samples" && parts[3] == "review":
 		r.reviewSample(w, req, parts[2])
 	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "quality-issues":
@@ -58,6 +64,12 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.listDatasetVersions(w, req, parts[2])
 	case req.Method == http.MethodPost && len(parts) == 4 && parts[0] == "api" && parts[1] == "projects" && parts[3] == "dataset-versions":
 		r.createDatasetVersion(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "dataset-versions" && parts[3] == "files":
+		r.listDatasetVersionFiles(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "dataset-version-files" && parts[3] == "download":
+		r.downloadDatasetVersionFile(w, req, parts[2])
+	case req.Method == http.MethodGet && len(parts) == 4 && parts[0] == "api" && parts[1] == "jobs" && parts[3] == "events":
+		r.listJobEvents(w, req, parts[2])
 	case req.Method == http.MethodPost && match(parts, "api", "jobs", "claim"):
 		r.claimJob(w, req)
 	case req.Method == http.MethodPatch && len(parts) == 4 && parts[0] == "api" && parts[1] == "jobs":
@@ -185,6 +197,10 @@ func (r *Router) updateJob(w http.ResponseWriter, req *http.Request, jobID, acti
 	var body struct {
 		Result       json.RawMessage `json:"result"`
 		ErrorMessage string          `json:"error_message"`
+		Stage        string          `json:"stage"`
+		Progress     int             `json:"progress"`
+		Message      string          `json:"message"`
+		Metadata     json.RawMessage `json:"metadata"`
 	}
 	_ = readJSON(req, &body)
 
@@ -194,6 +210,12 @@ func (r *Router) updateJob(w http.ResponseWriter, req *http.Request, jobID, acti
 		err = r.app.MarkJobRunning(req.Context(), jobID)
 	case "heartbeat":
 		err = r.app.HeartbeatJob(req.Context(), jobID)
+	case "progress":
+		metadata := "{}"
+		if len(body.Metadata) > 0 {
+			metadata = string(body.Metadata)
+		}
+		err = r.app.UpdateJobProgress(req.Context(), jobID, body.Stage, body.Progress, body.Message, metadata)
 	case "complete":
 		result := "{}"
 		if len(body.Result) > 0 {

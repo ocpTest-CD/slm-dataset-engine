@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ocptest-cd/slm-dataset-engine/services/api/internal/domain"
@@ -254,6 +255,11 @@ func (s *Store) ReviewSample(ctx context.Context, id, status, reviewer, note str
 	`, id, status, reviewer, note); err != nil {
 		return domain.Sample{}, err
 	}
+	if sample.RunID != "" {
+		if err := refreshRunSampleCounts(ctx, tx, sample.RunID); err != nil {
+			return domain.Sample{}, err
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return domain.Sample{}, err
 	}
@@ -262,7 +268,7 @@ func (s *Store) ReviewSample(ctx context.Context, id, status, reviewer, note str
 
 func (s *Store) ListQualityIssues(ctx context.Context, projectID string, limit int) ([]domain.QualityIssue, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, issue_type, severity, message, created_at
+			SELECT id, COALESCE(sample_id::text, ''), issue_type, severity, message, created_at
 		FROM quality_issues
 		WHERE project_id = $1
 		ORDER BY created_at DESC
@@ -276,7 +282,7 @@ func (s *Store) ListQualityIssues(ctx context.Context, projectID string, limit i
 	issues := make([]domain.QualityIssue, 0)
 	for rows.Next() {
 		var issue domain.QualityIssue
-		if err := rows.Scan(&issue.ID, &issue.IssueType, &issue.Severity, &issue.Message, &issue.CreatedAt); err != nil {
+		if err := rows.Scan(&issue.ID, &issue.SampleID, &issue.IssueType, &issue.Severity, &issue.Message, &issue.CreatedAt); err != nil {
 			return nil, err
 		}
 		issues = append(issues, issue)
@@ -353,14 +359,14 @@ func (s *Store) ClaimJob(ctx context.Context, workerID string) (domain.Job, erro
 			FOR UPDATE SKIP LOCKED
 			LIMIT 1
 		)
-		RETURNING id, COALESCE(project_id::text, ''), COALESCE(run_id::text, ''),
-			job_type, status, payload::text, attempts, max_attempts, error_message
+			RETURNING id, COALESCE(project_id::text, ''), COALESCE(run_id::text, ''),
+				job_type, status, stage, progress, message, payload::text, attempts, max_attempts, claimed_by, error_message
 	`, workerID)
 	return scanJob(row)
 }
 
 func (s *Store) MarkJobRunning(ctx context.Context, id string) error {
-	_, err := s.pool.Exec(ctx, `UPDATE jobs SET status = 'running', heartbeat_at = now(), updated_at = now() WHERE id = $1`, id)
+	_, err := s.pool.Exec(ctx, `UPDATE jobs SET status = 'running', stage = COALESCE(NULLIF(stage, ''), 'running'), heartbeat_at = now(), updated_at = now() WHERE id = $1`, id)
 	return err
 }
 
@@ -372,7 +378,7 @@ func (s *Store) HeartbeatJob(ctx context.Context, id string) error {
 func (s *Store) CompleteJob(ctx context.Context, id, result string) error {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE jobs
-		SET status = 'succeeded', result = $2::jsonb, finished_at = now(), updated_at = now()
+			SET status = 'succeeded', progress = 100, result = $2::jsonb, finished_at = now(), updated_at = now()
 		WHERE id = $1
 	`, id, result)
 	return err
@@ -426,7 +432,7 @@ func scanDatasetVersion(row scanner) (domain.DatasetVersion, error) {
 
 func scanJob(row scanner) (domain.Job, error) {
 	var job domain.Job
-	err := row.Scan(&job.ID, &job.ProjectID, &job.RunID, &job.JobType, &job.Status, &job.Payload, &job.Attempts, &job.MaxAttempts, &job.ErrorMessage)
+	err := row.Scan(&job.ID, &job.ProjectID, &job.RunID, &job.JobType, &job.Status, &job.Stage, &job.Progress, &job.Message, &job.Payload, &job.Attempts, &job.MaxAttempts, &job.ClaimedBy, &job.ErrorMessage)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Job{}, ErrNoJob
 	}
@@ -434,3 +440,19 @@ func scanJob(row scanner) (domain.Job, error) {
 }
 
 var ErrNoJob = errors.New("no pending job")
+
+type execer interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+}
+
+func refreshRunSampleCounts(ctx context.Context, tx execer, runID string) error {
+	_, err := tx.Exec(ctx, `
+		UPDATE runs
+		SET total_samples = (SELECT COUNT(*)::int FROM samples WHERE run_id = $1),
+			accepted_samples = (SELECT COUNT(*)::int FROM samples WHERE run_id = $1 AND status = 'accepted'),
+			rejected_samples = (SELECT COUNT(*)::int FROM samples WHERE run_id = $1 AND status = 'rejected'),
+			updated_at = now()
+		WHERE id = $1
+	`, runID)
+	return err
+}

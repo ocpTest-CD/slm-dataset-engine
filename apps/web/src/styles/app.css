@@ -36,6 +36,12 @@ button:disabled {
   opacity: 0.48;
 }
 
+button.secondary {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+}
+
 input,
 select,
 textarea {
@@ -242,9 +248,54 @@ h1 {
   background: #f8fafc;
 }
 
+.compact {
+  background: #f8fafc;
+}
+
+.job-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+}
+
+.job-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.job-row p {
+  color: #667085;
+  font-size: 13px;
+}
+
+.progress-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.progress-track span {
+  background: #35a169;
+  display: block;
+  height: 100%;
+  transition: width 180ms ease;
+}
+
 .sample-table {
   display: grid;
   gap: 10px;
+}
+
+.review-layout {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) 420px;
 }
 
 .sample-row strong {
@@ -272,6 +323,27 @@ h1 {
   padding: 4px 8px;
 }
 
+.status.pending,
+.status.claimed,
+.status.running,
+.status.building {
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+
+.status.succeeded,
+.status.ready,
+.status.completed {
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.status.failed,
+.status.failed_final {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
 .pending_review {
   background: #fff7ed;
   color: #c2410c;
@@ -285,6 +357,101 @@ h1 {
 .rejected {
   background: #fef2f2;
   color: #b91c1c;
+}
+
+.edited {
+  background: #eef4ff;
+  color: #1d4ed8;
+}
+
+.issue-pill {
+  background: #fef2f2;
+  border-radius: 999px;
+  color: #b91c1c;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  margin-left: 6px;
+  padding: 4px 8px;
+}
+
+.editor {
+  border: 1px solid #d5dbe5;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  position: sticky;
+  top: 18px;
+}
+
+.editor h3 {
+  margin: 0;
+}
+
+.editor label {
+  color: #475467;
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.editor textarea {
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.editor-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.issue-list {
+  display: grid;
+  gap: 6px;
+}
+
+.issue-list p {
+  background: #f8fafc;
+  border-radius: 8px;
+  color: #475467;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px;
+}
+
+.version-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.version-card span,
+.download-grid span {
+  color: #667085;
+  display: block;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.download-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.download-grid a {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #1f4fd8;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 9px 10px;
+  text-decoration: none;
 }
 
 .empty {
@@ -301,5 +468,12 @@ h1 {
   .panels {
     grid-template-columns: 1fr;
   }
-}
 
+  .review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .editor {
+    position: static;
+  }
+}

@@ -30,6 +30,9 @@ export type Run = {
 
 export type Sample = {
   id: string;
+  project_id: string;
+  run_id: string;
+  source_id: string;
   status: string;
   input_text: string;
   output_text: string;
@@ -40,6 +43,7 @@ export type Sample = {
 
 export type QualityIssue = {
   id: string;
+  sample_id: string;
   issue_type: string;
   severity: string;
   message: string;
@@ -52,6 +56,35 @@ export type DatasetVersion = {
   artifact_path: string;
   sample_count: number;
   created_at: string;
+};
+
+export type Job = {
+  id: string;
+  job_type: string;
+  status: string;
+  stage: string;
+  progress: number;
+  message: string;
+  claimed_by: string;
+  error_message: string;
+};
+
+export type SampleVersion = {
+  id: string;
+  version: number;
+  input_text: string;
+  output_text: string;
+  edited_by: string;
+  change_reason: string;
+  created_at: string;
+};
+
+export type DatasetVersionFile = {
+  id: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number;
+  sha256: string;
 };
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -85,8 +118,15 @@ export const api = {
   },
   startRun: (sourceId: string) => request<Run>(`/api/sources/${sourceId}/runs`, { method: "POST" }),
   listRuns: (projectId: string) => listRequest<Run>(`/api/projects/${projectId}/runs`),
+  listJobs: (projectId: string) => listRequest<Job>(`/api/projects/${projectId}/jobs`),
   listSamples: (projectId: string, status = "") =>
     listRequest<Sample>(`/api/projects/${projectId}/samples?limit=80${status ? `&status=${status}` : ""}`),
+  editSample: (sampleId: string, body: { input_text: string; output_text: string; change_reason: string; status: string }) =>
+    request<Sample>(`/api/samples/${sampleId}/edit`, {
+      method: "PATCH",
+      body: JSON.stringify({ ...body, edited_by: "workbench" })
+    }),
+  listSampleVersions: (sampleId: string) => listRequest<SampleVersion>(`/api/samples/${sampleId}/versions`),
   reviewSample: (sampleId: string, status: string) =>
     request<Sample>(`/api/samples/${sampleId}/review`, {
       method: "PATCH",
@@ -94,6 +134,8 @@ export const api = {
     }),
   listQualityIssues: (projectId: string) => listRequest<QualityIssue>(`/api/projects/${projectId}/quality-issues`),
   listVersions: (projectId: string) => listRequest<DatasetVersion>(`/api/projects/${projectId}/dataset-versions`),
+  listVersionFiles: (versionId: string) => listRequest<DatasetVersionFile>(`/api/dataset-versions/${versionId}/files`),
+  versionFileDownloadUrl: (fileId: string) => `${API_BASE}/api/dataset-version-files/${fileId}/download`,
   createVersion: (projectId: string, runId: string, versionName: string) =>
     request<DatasetVersion>(`/api/projects/${projectId}/dataset-versions`, {
       method: "POST",
